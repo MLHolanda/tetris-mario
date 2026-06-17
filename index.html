@@ -151,8 +151,9 @@ button:active {
 
 <h1>🍄 TETRIS DO MARIO 🍄</h1>
 
-<div id="placar">
-  ⭐ Pontos: <span id="pontos">0</span>
+<div id="placar"> 
+  ⭐ Pontos: <span id="pontos">0</span><br>
+  🏆 Recorde: <span id="recorde">0</span>
 </div>
 
 <div class="jogo-container">
@@ -193,6 +194,7 @@ let T = 30;
 const W = 10;
 const H = 20;
 let pontos = 0;
+let recorde = localStorage.getItem('recorde') || 0;
 
 const CORES = [
   '#00e5ff',
@@ -226,6 +228,7 @@ function ajustarTamanhoCelula() {
 
 function atualizarPlacar() {
   document.getElementById('pontos').textContent = pontos;
+  document.getElementById('recorde').textContent = recorde;
 }
 
 function gerarPecaAleatoria() {
@@ -309,6 +312,10 @@ function fixar() {
     pontos += linhasRemovidas * 100;
     atualizarPlacar();
   }
+  if (pontos > recorde) {
+  recorde = pontos;
+  localStorage.setItem('recorde', recorde);
+  }
   novaPeca();
 }
 
@@ -350,6 +357,7 @@ document.addEventListener('keydown', e => {
 });
 
 ajustarTamanhoCelula();
+atualizarPlacar();
 novaPeca();
 desenhar();
 

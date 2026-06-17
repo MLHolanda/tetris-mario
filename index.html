@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>🍄 Tetris do Mario</title>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: linear-gradient(#5cc8ff, #87ceeb);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  font-family: Arial, sans-serif;
+}
+
+h1 {
+  color: #ffcc00;
+  text-shadow: 2px 2px #c0392b;
+  margin-bottom: 10px;
+  text-align: center;
+  font-size: clamp(1.4rem, 5vw, 2rem);
+}
+
+#placar {
+  color: white;
+  font-size: clamp(18px, 4vw, 22px);
+  font-weight: bold;
+  margin-bottom: 12px;
+  background: #c0392b;
+  padding: 6px 14px;
+  border-radius: 10px;
+}
+
+.jogo-container {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+  max-width: 420px;
+}
+
+#tetris {
+  width: clamp(220px, 70vw, 300px);
+  height: clamp(440px, 140vw, 600px);
+  background: #111;
+  border: 3px solid #ffcc00;
+}
+
+/* Área da próxima peça: posição na lateral, só desceu um pouco mais */
+.previa-container {
+  background: #111;
+  padding: 6px;
+  border-radius: 8px;
+  text-align: center;
+  border: 2px solid #ffcc00;
+  width: 85px;
+  height: 85px;
+  margin-top: 200px; /* Desceu só um pouco mais do que estava antes */
+}
+
+.previa-container h3 {
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: #fff;
+}
+
+#preview {
+  width: 70px;
+  height: 70px;
+  background: #111;
+}
+
+.controles {
+  display: grid;
+  grid-template-columns: repeat(3, 55px);
+  gap: 6px;
+  justify-content: center;
+  margin-top: 15px;
+}
+
+button {
+  background: #c0392b;
+  color: white;
+  border: none;
+  font-size: 20px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+.rodape {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  text-align: center;
+  color: #fff;
+  text-shadow: 1px 1px 2px #c0392b;
+}
+
+#logo {
+  width: 50px;
+  height: auto;
+  border-radius: 6px;
+  border: 2px solid #ffcc00;
+}
+
+.info-autor p {
+  margin: 2px 0;
+}
+
+.info-autor .nome {
+  font-size: 16px;
+  color: #ffcc00;
+  font-weight: bold;
+}
+
+@media (max-width: 320px) {
+  .controles {
+    grid-template-columns: repeat(3, 50px);
+  }
+  button {
+    font-size: 18px;
+    padding: 8px;
+  }
+  .previa-container {
+    margin-top: 140px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<h1>🍄 TETRIS DO MARIO 🍄</h1>
+
+<div id="placar">
+  ⭐ Pontos: <span id="pontos">0</span>
+</div>
+
+<div class="jogo-container">
+  <canvas id="tetris"></canvas>
+
+  <div class="previa-container">
+    <h3>Próxima</h3>
+    <canvas id="preview"></canvas>
+  </div>
+</div>
+
+<div class="controles">
+  <button id="btnEsq">⬅️</button>
+  <button id="btnGirar">🔄</button>
+  <button id="btnDir">➡️</button>
+  <button id="btnBaixo" style="grid-column: 2;">⬇️</button>
+</div>
+
+<div class="rodape">
+  <img id="logo" src="logo.jpeg" alt="Logo Mario Holanda">
+  <div class="info-autor">
+    <p>Desenvolvido por</p>
+    <p class="nome">Mario Holanda</p>
+    <p style="font-size: 12px;">© 2026 - Todos os direitos reservados</p>
+  </div>
+</div>
+
+<script>
+const preview = document.getElementById('preview');
+const pctx = preview.getContext('2d');
+
+const canvas = document.getElementById('tetris');
+const ctx = canvas.getContext('2d');
+
+let proximaPeca = null;
+let proximaCor = null;
+let T = 30;
+const W = 10;
+const H = 20;
+let pontos = 0;
+
+const CORES = [
+  '#00e5ff',
+  '#3498db',
+  '#e67e22',
+  '#f1c40f',
+  '#2ecc71',
+  '#9b59b6',
+  '#e74c3c'
+];
+
+const PECAS = [
+  [[1,1,1,1]],
+  [[1,1],[1,1]],
+  [[0,1,0],[1,1,1]],
+  [[1,0,0],[1,1,1]],
+  [[0,0,1],[1,1,1]],
+  [[1,1,0],[0,1,1]],
+  [[0,1,1],[1,1,0]]
+];
+
+let tabuleiro = Array(H).fill().map(() => Array(W).fill(0));
+let peca, cor, x, y;
+
+function ajustarTamanhoCelula() {
+  const larguraTela = canvas.clientWidth;
+  T = Math.floor(larguraTela / 10);
+  canvas.width = larguraTela;
+  canvas.height = larguraTela * 2;
+}
+
+function atualizarPlacar() {
+  document.getElementById('pontos').textContent = pontos;
+}
+
+function gerarPecaAleatoria() {
+  const r = Math.floor(Math.random() * PECAS.length);
+  return { forma: PECAS[r], cor: CORES[r] };
+}
+
+function novaPeca() {
+  if (!proximaPeca) {
+    const primeira = gerarPecaAleatoria();
+    proximaPeca = primeira.forma;
+    proximaCor = primeira.cor;
+  }
+  peca = proximaPeca;
+  cor = proximaCor;
+  const nova = gerarPecaAleatoria();
+  proximaPeca = nova.forma;
+  proximaCor = nova.cor;
+  desenharPreview();
+  x = Math.floor(W / 2 - peca[0].length / 2);
+  y = 0;
+  if (colisao(x, y, peca)) {
+    alert("🍄 GAME OVER! Desenvolvido por Mario Holanda");
+    location.reload();
+  }
+}
+
+function desenhar() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  tabuleiro.forEach((linha, ly) => {
+    linha.forEach((c, lx) => {
+      if (c) {
+        ctx.fillStyle = c;
+        ctx.fillRect(lx * T, ly * T, T - 1, T - 1);
+      }
+    });
+  });
+  peca.forEach((linha, ly) => {
+    linha.forEach((c, lx) => {
+      if (c) {
+        ctx.fillStyle = cor;
+        ctx.fillRect((x + lx) * T, (y + ly) * T, T - 1, T - 1);
+      }
+    });
+  });
+}
+
+function colisao(px, py, forma) {
+  for (let ly = 0; ly < forma.length; ly++) {
+    for (let lx = 0; lx < forma[ly].length; lx++) {
+      if (forma[ly][lx]) {
+        const novoX = px + lx;
+        const novoY = py + ly;
+        if (novoY >= H || novoX < 0 || novoX >= W || (novoY >= 0 && tabuleiro[novoY][novoX])) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function fixar() {
+  peca.forEach((linha, ly) => {
+    linha.forEach((c, lx) => {
+      if (c) tabuleiro[y + ly][x + lx] = cor;
+    });
+  });
+  let linhasRemovidas = 0;
+  tabuleiro = tabuleiro.filter(linha => {
+    if (linha.every(v => v)) {
+      linhasRemovidas++;
+      return false;
+    }
+    return true;
+  });
+  while (tabuleiro.length < H) {
+    tabuleiro.unshift(Array(W).fill(0));
+  }
+  if (linhasRemovidas > 0) {
+    pontos += linhasRemovidas * 100;
+    atualizarPlacar();
+  }
+  novaPeca();
+}
+
+function esq() { if (!colisao(x - 1, y, peca)) x--; desenhar(); }
+function dir() { if (!colisao(x + 1, y, peca)) x++; desenhar(); }
+function baixo() { if (!colisao(x, y + 1, peca)) y++; desenhar(); }
+function girar() {
+  const girada = peca[0].map((_, i) => peca.map(l => l[i]).reverse());
+  if (!colisao(x, y, girada)) peca = girada;
+  desenhar();
+}
+
+// AQUI: aumentei só o tamanho da figura dentro da tela
+function desenharPreview() {
+  pctx.clearRect(0, 0, 70, 70);
+  const tamanho = 17; /* Aumentei os blocos da figura */
+  const deslocX = (70 - proximaPeca[0].length * tamanho) / 2;
+  const deslocY = (70 - proximaPeca.length * tamanho) / 2;
+  proximaPeca.forEach((linha, ly) => {
+    linha.forEach((c, lx) => {
+      if (c) {
+        pctx.fillStyle = proximaCor;
+        pctx.fillRect(deslocX + lx * tamanho, deslocY + ly * tamanho, tamanho - 1, tamanho - 1);
+      }
+    });
+  });
+}
+
+document.getElementById('btnEsq').addEventListener('click', esq);
+document.getElementById('btnDir').addEventListener('click', dir);
+document.getElementById('btnBaixo').addEventListener('click', baixo);
+document.getElementById('btnGirar').addEventListener('click', girar);
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') esq();
+  if (e.key === 'ArrowRight') dir();
+  if (e.key === 'ArrowDown') baixo();
+  if (e.key === 'ArrowUp') girar();
+});
+
+ajustarTamanhoCelula();
+novaPeca();
+desenhar();
+
+setInterval(() => {
+  if (!colisao(x, y + 1, peca)) y++;
+  else fixar();
+  desenhar();
+}, 600);
+
+window.addEventListener('resize', () => {
+  ajustarTamanhoCelula();
+  desenhar();
+});
+</script>
+
+</body>
+</html>

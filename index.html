@@ -57,7 +57,6 @@ h1 {
   border: 3px solid #ffcc00;
 }
 
-/* Área da próxima peça: posição na lateral, só desceu um pouco mais */
 .previa-container {
   background: #111;
   padding: 6px;
@@ -66,7 +65,7 @@ h1 {
   border: 2px solid #ffcc00;
   width: 85px;
   height: 85px;
-  margin-top: 200px; /* Desceu só um pouco mais do que estava antes */
+  margin-top: 200px;
 }
 
 .previa-container h3 {
@@ -79,6 +78,29 @@ h1 {
   width: 70px;
   height: 70px;
   background: #111;
+}
+
+/* BOTÕES LOGO ABAIXO DA PRÉVIA, LADO ESQUERDO */
+.botoes-controle {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  width: 85px;
+}
+
+.botoes-controle button {
+  font-size: 13px;
+  padding: 7px 2px;
+  background: #c0392b;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.botoes-controle button:active {
+  transform: scale(0.95);
 }
 
 .controles {
@@ -159,9 +181,17 @@ button:active {
 <div class="jogo-container">
   <canvas id="tetris"></canvas>
 
-  <div class="previa-container">
-    <h3>Próxima</h3>
-    <canvas id="preview"></canvas>
+  <div>
+    <div class="previa-container">
+      <h3>Próxima</h3>
+      <canvas id="preview"></canvas>
+    </div>
+
+    <!-- BOTÕES NO LOCAL EXATO QUE PEDIU -->
+    <div class="botoes-controle">
+      <button id="btnIniciar">▶️ Iniciar</button>
+      <button id="btnPausar">⏸️ Pausar</button>
+    </div>
   </div>
 </div>
 
@@ -182,30 +212,25 @@ button:active {
 </div>
 
 <script>
+// ELEMENTOS
+const canvas = document.getElementById('tetris');
+const ctx = canvas.getContext('2d');
 const preview = document.getElementById('preview');
 const pctx = preview.getContext('2d');
 
-const canvas = document.getElementById('tetris');
-const ctx = canvas.getContext('2d');
-
-let proximaPeca = null;
-let proximaCor = null;
+// VARIÁVEIS DO JOGO
 let T = 30;
 const W = 10;
 const H = 20;
 let pontos = 0;
 let recorde = localStorage.getItem('recorde') || 0;
+let jogoRodando = true;
+let intervalo;
+let proximaPeca, proximaCor;
+let peca, cor, x, y;
 
-const CORES = [
-  '#00e5ff',
-  '#3498db',
-  '#e67e22',
-  '#f1c40f',
-  '#2ecc71',
-  '#9b59b6',
-  '#e74c3c'
-];
-
+// CORES E PEÇAS
+const CORES = ['#00e5ff','#3498db','#e67e22','#f1c40f','#2ecc71','#9b59b6','#e74c3c'];
 const PECAS = [
   [[1,1,1,1]],
   [[1,1],[1,1]],
@@ -216,9 +241,10 @@ const PECAS = [
   [[0,1,1],[1,1,0]]
 ];
 
+// TABULEIRO
 let tabuleiro = Array(H).fill().map(() => Array(W).fill(0));
-let peca, cor, x, y;
 
+// AJUSTA TAMANHO
 function ajustarTamanhoCelula() {
   const larguraTela = canvas.clientWidth;
   T = Math.floor(larguraTela / 10);
@@ -226,16 +252,19 @@ function ajustarTamanhoCelula() {
   canvas.height = larguraTela * 2;
 }
 
+// PLACAR
 function atualizarPlacar() {
   document.getElementById('pontos').textContent = pontos;
   document.getElementById('recorde').textContent = recorde;
 }
 
+// GERAR PEÇA
 function gerarPecaAleatoria() {
   const r = Math.floor(Math.random() * PECAS.length);
   return { forma: PECAS[r], cor: CORES[r] };
 }
 
+// NOVA PEÇA
 function novaPeca() {
   if (!proximaPeca) {
     const primeira = gerarPecaAleatoria();
@@ -256,8 +285,10 @@ function novaPeca() {
   }
 }
 
+// DESENHAR TELA PRINCIPAL
 function desenhar() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Desenha tabuleiro
   tabuleiro.forEach((linha, ly) => {
     linha.forEach((c, lx) => {
       if (c) {
@@ -266,6 +297,7 @@ function desenhar() {
       }
     });
   });
+  // Desenha peça atual
   peca.forEach((linha, ly) => {
     linha.forEach((c, lx) => {
       if (c) {
@@ -276,13 +308,14 @@ function desenhar() {
   });
 }
 
+// COLISÃO
 function colisao(px, py, forma) {
   for (let ly = 0; ly < forma.length; ly++) {
     for (let lx = 0; lx < forma[ly].length; lx++) {
       if (forma[ly][lx]) {
-        const novoX = px + lx;
-        const novoY = py + ly;
-        if (novoY >= H || novoX < 0 || novoX >= W || (novoY >= 0 && tabuleiro[novoY][novoX])) {
+        const nx = px + lx;
+        const ny = py + ly;
+        if (ny >= H || nx < 0 || nx >= W || (ny >= 0 && tabuleiro[ny][nx])) {
           return true;
         }
       }
@@ -291,6 +324,7 @@ function colisao(px, py, forma) {
   return false;
 }
 
+// FIXAR PEÇA E VERIFICAR LINHAS
 function fixar() {
   peca.forEach((linha, ly) => {
     linha.forEach((c, lx) => {
@@ -299,74 +333,89 @@ function fixar() {
   });
   let linhasRemovidas = 0;
   tabuleiro = tabuleiro.filter(linha => {
-    if (linha.every(v => v)) {
-      linhasRemovidas++;
-      return false;
-    }
+    if (linha.every(v => v)) { linhasRemovidas++; return false; }
     return true;
   });
-  while (tabuleiro.length < H) {
-    tabuleiro.unshift(Array(W).fill(0));
-  }
+  while (tabuleiro.length < H) tabuleiro.unshift(Array(W).fill(0));
   if (linhasRemovidas > 0) {
     pontos += linhasRemovidas * 100;
+    if (pontos > recorde) {
+      recorde = pontos;
+      localStorage.setItem('recorde', recorde);
+    }
     atualizarPlacar();
-  }
-  if (pontos > recorde) {
-  recorde = pontos;
-  localStorage.setItem('recorde', recorde);
   }
   novaPeca();
 }
 
-function esq() { if (!colisao(x - 1, y, peca)) x--; desenhar(); }
-function dir() { if (!colisao(x + 1, y, peca)) x++; desenhar(); }
-function baixo() { if (!colisao(x, y + 1, peca)) y++; desenhar(); }
+// MOVIMENTOS
+function esq() { if (!colisao(x - 1, y, peca)) { x--; desenhar(); } }
+function dir() { if (!colisao(x + 1, y, peca)) { x++; desenhar(); } }
+function baixo() { if (!colisao(x, y + 1, peca)) { y++; desenhar(); } }
 function girar() {
   const girada = peca[0].map((_, i) => peca.map(l => l[i]).reverse());
-  if (!colisao(x, y, girada)) peca = girada;
-  desenhar();
+  if (!colisao(x, y, girada)) { peca = girada; desenhar(); }
 }
 
-// AQUI: aumentei só o tamanho da figura dentro da tela
+// DESENHAR PRÓXIMA PEÇA
 function desenharPreview() {
   pctx.clearRect(0, 0, 70, 70);
-  const tamanho = 17; /* Aumentei os blocos da figura */
-  const deslocX = (70 - proximaPeca[0].length * tamanho) / 2;
-  const deslocY = (70 - proximaPeca.length * tamanho) / 2;
+  const tam = 17;
+  const dx = (70 - proximaPeca[0].length * tam) / 2;
+  const dy = (70 - proximaPeca.length * tam) / 2;
   proximaPeca.forEach((linha, ly) => {
     linha.forEach((c, lx) => {
       if (c) {
         pctx.fillStyle = proximaCor;
-        pctx.fillRect(deslocX + lx * tamanho, deslocY + ly * tamanho, tamanho - 1, tamanho - 1);
+        pctx.fillRect(dx + lx * tam, dy + ly * tam, tam - 1, tam - 1);
       }
     });
   });
 }
 
+// LOOP PRINCIPAL
+function loopJogo() {
+  if (!jogoRodando) return;
+  if (!colisao(x, y + 1, peca)) y++;
+  else fixar();
+  desenhar();
+}
+
+// CONTROLES DE BOTÕES
 document.getElementById('btnEsq').addEventListener('click', esq);
 document.getElementById('btnDir').addEventListener('click', dir);
 document.getElementById('btnBaixo').addEventListener('click', baixo);
 document.getElementById('btnGirar').addEventListener('click', girar);
 
+document.getElementById('btnIniciar').addEventListener('click', () => {
+  if (!jogoRodando) {
+    jogoRodando = true;
+    intervalo = setInterval(loopJogo, 600);
+  }
+});
+
+document.getElementById('btnPausar').addEventListener('click', () => {
+  jogoRodando = false;
+  clearInterval(intervalo);
+});
+
+// TECLAS DO TECLADO
 document.addEventListener('keydown', e => {
+  if (!jogoRodando) return;
   if (e.key === 'ArrowLeft') esq();
   if (e.key === 'ArrowRight') dir();
   if (e.key === 'ArrowDown') baixo();
   if (e.key === 'ArrowUp') girar();
 });
 
+// INICIALIZAÇÃO
 ajustarTamanhoCelula();
 atualizarPlacar();
 novaPeca();
 desenhar();
+intervalo = setInterval(loopJogo, 600); // JÁ COMEÇA RODANDO
 
-setInterval(() => {
-  if (!colisao(x, y + 1, peca)) y++;
-  else fixar();
-  desenhar();
-}, 600);
-
+// AJUSTA AO REDIMENSIONAR TELA
 window.addEventListener('resize', () => {
   ajustarTamanhoCelula();
   desenhar();
